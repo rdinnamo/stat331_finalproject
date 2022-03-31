@@ -1,0 +1,328 @@
+---
+title: "Final Report"
+author: "Ryan Innamorati, Nathan Stanley, Cameron Stivers, Ben Laufer"
+date: "3/9/2022"
+output:
+  html_document:
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+The Internet has arguably been the most influential development of humanity in modern times. Throughout countries across the world, it has broadened the limits of what free speech can be, reconnected friends and family across borders, and allowed individuals and academics alike to share information and further their knowledge on the world around us. In this era of constant connection, communication, and available information, one would assume that there exists some semblance of correlation between general happiness and access to the Internet, whether it be positive or negative.
+
+Throughout this report, we attempt to investigate the possibility of a relationship between two variables measured in countries around the world: overall happiness score (on a scale from zero to one hundred) and percentage of population with access to the Internet. We then delve further into the quality of said relationship, using statistical visualizations and indicators to determine whether or not any perceived correlation is reliable.
+
+</div>
+
+```{r, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(broom)
+library(gapminder)
+library(gganimate)
+library(av)
+library(countrycode)
+library(kableExtra)
+library(png)
+library(gifski)
+```
+
+## Data Cleaning
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+In order to investigate this relationship, first we must combine two datasets together and get both variables into one place from which we can begin our analysis. By including regions in our final dataset, we introduce the possibility of viewing correlation results by location, bringing in the question of whether or not these happiness scores can be affected by variables other than the single one we are investigating.
+
+</div>
+
+```{r, message = FALSE, warning = FALSE}
+happy <- read_csv(here::here("project", "data", "hapiscore_whr.csv"))
+non_internet <- read_csv(here::here("project", "data", "non_net_users_prc.csv"))
+
+happy_long <- happy %>%
+  pivot_longer(`2004`:`2018`, names_to = "year", values_to = "h_score")
+
+non_int_long <- non_internet %>%
+  pivot_longer(`1989`:`2018`, names_to = "year", values_to = "n_intprop")
+
+happy_int <- happy_long %>%
+  merge(non_int_long, by = c("country", "year")) %>%
+  mutate(
+    n_intprop = 100 - n_intprop
+  ) %>%
+  rename(intprop = n_intprop)
+
+happy_clean <- happy_int %>%
+  mutate(
+    continent = countrycode(sourcevar = happy_int[, "country"],
+                            origin = "country.name",
+                            destination = "continent")
+  ) %>%
+  filter(!is.na(h_score))
+```
+
+## Data Visualization {.tabset}
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+The first visualization shown below compares the happiness score to the percentage of the population with access to the Internet. From this plot, we can see that there is a positive association between the two factors, indicating that an increase in Internet access is associated with a higher happiness score. This graph also shows us that the data appears to be clustered in groups based on region. For example, countries based in Africa appear to have less Internet access percentages propagated across the plot than countries in Europe, which are present all across the $X$ axis. This indicates that while this data may allow us to make a general conclusion for all countries around the world about the correlation between these two variables, a more complete model would take region and possibly other variables into account along with Internet access.
+
+The second visualization is an animated scatterplot that plots the same data as the first graph over time. Through this graph, we can see that aside from the differences in region mentioned above, the perceived correlation remains relatively positive and linear over time.
+
+</div>
+
+ 
+
+### Relationship Between Variables (colored by Region)
+
+```{r}
+happy_clean %>%
+  ggplot(aes(x = intprop, y = h_score)) +
+  geom_point(aes(color = continent)) +
+  xlab("Percentage of Population Using the Internet (%)") +
+  ylab("Happiness Score") +
+  theme(
+    text = element_text(family = "serif")
+  ) +
+  scale_color_manual(values = c("#003f5c", "#58508d", "#bc5090", "#ff6361", "#ffa600"), name = "Region")
+```
+
+### Relationship Between Variables Over Time (colored by Region)
+
+```{r, warning = FALSE, message = FALSE}
+happy_clean %>%
+  ggplot(aes(x = intprop, y = h_score)) +
+  geom_point(aes(color = continent)) +
+  xlab("Percentage of Population Using the Internet (%)") +
+  ylab("Happiness Score") +
+  labs(title = "Year: {current_frame}") +
+  theme(
+    text = element_text(family = "serif")
+  ) +
+  scale_color_manual(values = c("#003f5c", "#58508d", "#bc5090", "#ff6361", "#ffa600"), name = "Region") +
+  #facet_wrap(~ continent) +
+  transition_manual(year)
+```
+
+## Linear Regression
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+In order to further investigate the relationship between our explanatory (percentage of population with access to Internet) and response (overall happiness score) variables, we define a simple linear regression. From the summary output below, we can present our model using the following equation where `h_score` is the overall happiness score and `intprop` is the percentage of the population with access to Internet:
+
+\begin{equation}
+\widehat{h\_score}_i = 43.03 + 0.2635 intprop_i
+\end{equation}
+
+We can interpret the intercept of 43.03 as saying that if none of a country's population had access to the Internet, the expected happiness score would be 43.03. The intprop coefficient of 0.2635 can be interpreted as saying that each percentage point increase in Internet access is associated with an increase of 0.2635 in the mean average happiness score.
+</div>
+
+```{r, warning = FALSE, message = FALSE}
+happy_lm <- happy_clean %>%
+  lm(formula = h_score ~ intprop, data = .)
+
+coef <- data.frame(summary(happy_lm)$coefficients) %>%
+  select(Estimate)
+
+knitr::kable(coef) %>%
+  kable_styling(font_size = 15, html_font = "serif") %>%
+  row_spec(0:2, color = "black", background = "white")
+```
+
+### Model Fit
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+To get more information on how good of a fit this simple linear regression model really is for our data, we produce the variance numbers for the response values, fitted values, and the residuals from the estimated model. The magnitudes of these numbers should give us a good idea of how much the different aspects of our model vary from each other on average.
+
+</div>
+
+```{r, warning = FALSE, message = FALSE}
+res_var <- var(happy_clean$h_score)
+fit_var <- happy_lm %>%
+  augment() %>%
+  select(`.fitted`) %>%
+  var() %>%
+  as.numeric()
+resid_var <- happy_lm %>%
+  augment() %>%
+  select(`.resid`) %>%
+  var() %>%
+  as.numeric()
+
+var_df <- data.frame(res_var, fit_var, resid_var) %>%
+  rename(
+    "Variance in Response Values" = res_var,
+    "Variance in Fitted Regression Values" = fit_var,
+    "Variance in Regression Residuals" = resid_var
+  )
+
+knitr::kable(var_df) %>%
+  kable_styling(font_size = 15, html_font = "serif") %>%
+  row_spec(0:1, color = "black", background = "white")
+```
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+From the table above, we can see that there is a substantial amount of variance in the response values of our regression model. This would suggest that our single explanatory variable does not completely explain all the variance in our model, and therefore the quality of the model can be defined as incomplete. This information aligns with the assumptions we made earlier about the effects that the possible inclusion of additional variables (like region) could have on the accuracy of our model.
+
+</div>
+
+## Visualizing Simulations from the Model {.tabset}
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+Thus far, our results show that our model is not the greatest fit for explaining the response variable. To investigate this claim further, we apply the use of a predictive check in which we simulate a data set based off of our model that maintains the same error values as our original data set and compare the observed data to the simulated data. If our model is a good fit for the data and explanatory variables, then the simulated and observed data should be extremely similar.
+
+The first visualization pictured below shows similar plots to the first plot created above, where our explanatory variable is on the $X$ axis and our response variable is on the $Y$ axis. However, this visualization differs in that it compares the relationship between our explanatory variable and the simulated scores with the relationship between our explanatory variable and the observed scores. By viewing these two plots side by side, the spreads are relatively similar, with that of the simulated data appearing slightly more homoscedastic and less spread out than the observed data.
+
+However, when we move to the second visualization, an entirely different story is told. Theoretically, if our model were to be fully accurate, this plot would be a straight line with no outliers, as the simulated and observed response variables should be entirely similar. This means that the more spread out the data is, the more inaccurate our model is. While the shapes from the first plots seem to be relatively similar, this second plot shows us that the results are remarkably different, suggesting that our model is not entirely accurate and happiness scores cannot be reliably predicted by percentage of the population with access to the Internet alone.
+
+</div>
+
+### Simulated Data alongside Observed Data
+
+```{r, warning = FALSE, message = FALSE}
+noise <- function(x, mean = 0, sd){
+  x + rnorm(length(x), 
+            mean, 
+            sd)
+}
+
+happy_predict <- predict(happy_lm)
+happy_sigma <- sigma(happy_lm)
+
+new_data <- tibble(sim_happy = noise(happy_predict, 
+                                     sd = happy_sigma
+                                     )
+                   )
+plot_data <- bind_cols(happy_clean, new_data)
+
+obs <- plot_data %>%
+  ggplot(aes(x = intprop, y = h_score)) +
+  geom_point() +
+  ylab("Observed Happiness Scores") +
+  xlab("Percentage of Population Using the Internet (%)") +
+  theme(
+    text = element_text(family = "serif")
+  )
+
+sim <- plot_data %>%
+  ggplot(aes(x = intprop, y = sim_happy)) +
+  geom_point() +
+  ylab("Simulated Happiness Scores") +
+  xlab("Percentage of Population Using the Internet (%)") +
+  theme(
+    text = element_text(family = "serif")
+  )
+
+gridExtra::grid.arrange(sim, obs, nrow = 1)
+```
+
+### Relationship Between Observed and Simulated Happiness Scores
+
+```{r, warning = FALSE, message = FALSE}
+plot_data %>%
+  ggplot(aes(x = sim_happy, y = h_score)) +
+  geom_point() +
+  xlab("Simulated Happiness Scores") +
+  ylab("Observed Happiness Scores") +
+  theme(
+    text = element_text(family = "serif")
+  )
+```
+
+## Generating Multiple Predictive Checks
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+To further investigate the fit of our model using our simulated and observed data, we can make use of the $R^2$ summary statistic. Here, we generate 1000 different simulations of our response variable in order to get a good picture as to how statistically accurate our model is. We then plot the distribution of $R^2$ values from these simulations to show how accurate our model is on average.
+
+</div>
+
+```{r, cache = TRUE, message = FALSE, warning = FALSE}
+nsims <- 1000
+
+sims <- map_dfc(1:nsims,
+                ~ tibble(sim = noise(happy_predict, sd = happy_sigma)
+                        )
+                )
+colnames(sims) <- colnames(sims) %>% 
+  str_replace(pattern = "\\.\\.\\.", replace = "_")
+
+sims <- happy_clean %>% 
+  filter(!is.na(h_score), 
+         !is.na(intprop), 
+         !is.na(continent)) %>% 
+  select(h_score) %>% 
+  bind_cols(sims)
+
+sim_r_sq <- sims %>% 
+  map(~lm(h_score ~ .x, data = sims)) %>% 
+  map(glance) %>% 
+  map_dbl(~.$r.squared)
+
+sim_rsq <- as.tibble(sim_r_sq)
+```
+
+```{r, warning = FALSE, message = FALSE}
+sim_rsq %>%
+  filter(value < 1) %>%
+  ggplot(aes(x = value)) +
+  geom_histogram() +
+  labs(title = "Distribution of R-Squared Values From Simulated Regressions") +
+  xlab("R-Squared") +
+  ylab("Count") +
+  theme(
+    plot.title.position = "plot",
+    text = element_text(family = "serif")
+  )
+```
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+Of the 1000 simulations we ran on this regression, we see that our results gave us an average $R^2$ value of around 0.23. Therefore, we can conclude that only about 23% of the variation in simulated happiness scores can be explained by internet usage. This tells us that our single explanatory variable is not enough to accurately predict happiness scores. However, considering our model only has one explanatory variable, we can at least consider the notion that the internet usage from a given country is a statistically influential variable in determining the happiness level of that country.
+
+</div>
+
+## Conclusion
+
+<style>
+div.blue { background-color:#e6f0ff; border-radius: 5px; padding: 20px;}
+</style>
+<div class = "blue">
+
+As the above results show, while there does appear to be a relationship and some correlation between happiness scores and Internet access across the world, it is not a very strong relationship. If we were to add more variables and perhaps try different models, we might be able to find more reliable predictors for happiness score. However, it is unlikely that we would ever find a perfect predictor for this variable. Happiness is one of the most subjective things one could possibly attempt to predict or measure, and is an individualized emotion that could never be properly estimated or quantified. The effect that Internet access can have on happiness is truly up to the individual, but the process of attempting to predict an unquantifiable aggregate variable is interesting nonetheless.
+
+</div>
